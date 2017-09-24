@@ -6,10 +6,18 @@ local thismod = {
 }
 _G[modname] = thismod
 
+function thismod.mklog(level, modname)
+  return function(str)
+    minetest.log(level, "[" .. modname .. "] " .. str)
+  end
+end
+local LogI = thismod.mklog('action', modname)
+local LogE = thismod.mklog('error', modname)
+
 local singleplayer = minetest.is_singleplayer() -- Caching is OK since you can't open a game to
 -- multiplayer unless you restart it.
-if not minetest.setting_get(modname .. '.enable_singleplayer') and singleplayer then
-  minetest.log('action', modname .. ": Not enabling because of singleplayer game")
+if minetest.setting_get(modname .. '.enable_singleplayer') ~= 'true' and singleplayer then
+  LogI("Not enabling because of singleplayer game")
   return
 end
 
@@ -25,6 +33,27 @@ local function setoverlay(tab, orig)
     end
   end
   setmetatable(tab, mt)
+end
+
+local insecrequire = _G.require
+local ffi, bit
+do
+  if minetest.request_insecure_environment then
+    insecrequire = minetest.request_insecure_environment().require
+    LogI("Fetched require() from insecure env")
+  end
+  local test_fn = function()
+    return { require('ffi'), require('bit') }
+  end
+  local env = { require = insecrequire }
+  setoverlay(env, _G)
+  setfenv(test_fn, env)
+  local ffi_ok, ret = pcall(test_fn)
+  if not ffi_ok then
+    error("Cannot access LuaJIT FFI. Either you are not using LuaJIT, or mod security is enabled" ..
+          " and mysql_base is not an exception.")
+  end
+  ffi, bit = unpack(ret)
 end
 
 local function string_splitdots(s)
@@ -52,21 +81,32 @@ end
 
 local mysql
 do -- MySQL module loading
-  local env = {
-    require = function (module)
-      if module == 'mysql_h' then
-        return dofile(modpath .. '/mysql/mysql_h.lua')
-      else
-        return require(module)
-      end
-    end
-  }
+  local env = {}
   setoverlay(env, _G)
-  local fn, msg = loadfile(modpath .. '/mysql/mysql.lua')
-  if not fn then error(msg) end
-  setfenv(fn, env)
+  local function secexec(path)
+    local fn, msg = loadfile(path)
+    if not fn then error(msg) end
+    setfenv(fn, env)
+    local status, ret = pcall(fn, {})
+    if not status then
+      error(ret)
+    end
+    return ret
+  end
+  local function secrequire(module)
+    if module == 'mysql_h' then
+      return secexec(modpath .. '/mysql/mysql_h.lua')
+    elseif module == 'ffi' then
+      return ffi
+    elseif module == 'bit' then
+      return bit
+    else
+      error("mysql.lua tried to require('" .. module .. "')")
+    end
+  end
+  env.require = secrequire
   local status
-  status, mysql = pcall(fn, {})
+  status, mysql = pcall(secexec, modpath .. '/mysql/mysql.lua')
   if not status then
     error(modname .. ' failed to load MySQL FFI interface: ' .. tostring(mysql))
   end
@@ -74,7 +114,12 @@ do -- MySQL module loading
 end
 
 function thismod.mkget(modname)
-  local get = function (name) return minetest.setting_get(modname .. '.' .. name) end
+  local get
+  if minetest.settings then
+    get = function (name) return minetest.settings:get(modname .. '.' .. name) end
+  else
+    get = function (name) return minetest.setting_get(modname .. '.' .. name) end
+  end
   local cfgfile = get('cfgfile')
   if type(cfgfile) == 'string' and cfgfile ~= '' then
     local file = io.open(cfgfile, 'rb')
@@ -128,7 +173,7 @@ do
   connopts.options.MYSQL_OPT_RECONNECT = true
   conn = mysql.connect(connopts)
   dbname = connopts.db
-  minetest.log('action', modname .. ": Connected to MySQL database " .. dbname)
+  LogI("Connected to MySQL database " .. dbname)
   thismod.conn = conn
   thismod.dbname = dbname
 
@@ -152,7 +197,7 @@ end
 local function ping()
   if thismod.conn then
     if not thismod.conn:ping() then
-      minetest.log('error', modname .. ": failed to ping database")
+      LogE('error', modname .. ": failed to ping database")
     end
   end
   minetest.after(1800, ping)
@@ -166,13 +211,13 @@ end
 
 minetest.register_on_shutdown(function()
   if thismod.conn then
-    minetest.log('action', modname .. ": Shutting down, running callbacks")
+    LogI("Shutting down, running callbacks")
     for _, func in ipairs(shutdown_callbacks) do
       func()
     end
     thismod.conn:close()
     thismod.conn = nil
-    minetest.log('action', modname .. ": Cosed database connection")
+    LogI("Closed database connection")
   end
 end)
 
@@ -184,3 +229,4 @@ function thismod.table_exists(name)
   return exists
 end
 
+dofile(modpath .. '/abstraction.lua')

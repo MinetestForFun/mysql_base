@@ -9,7 +9,10 @@ function thismod.create_table_sql(name, params)
   for _, coldata in ipairs(params.columns) do
     local line = (coldata.name or coldata[1]) .. ' ' .. (coldata.type or coldata[2])
     if coldata.notnull then
-       line = line .. ' NOT NULL'
+      line = line .. ' NOT NULL'
+    end
+    if coldata.default then
+      line = line .. ' DEFAULT ' .. coldata.default
     end
     if coldata.autoincrement then
       line = line .. ' AUTO_INCREMENT'
@@ -69,8 +72,10 @@ end
 function thismod.prepare_update(tablename, cols, where, wheretypes)
   local colnames, paramtypes = {}, {}
   for _, col in ipairs(cols) do
-    table.insert(colnames, (col.name or col[1]) .. '=?')
-    table.insert(paramtypes, col.type or col[2])
+    table.insert(colnames, (col.name or col[1]) .. '=' .. (col.value or '?'))
+    if col.type or col[2] then
+      table.insert(paramtypes, col.type or col[2])
+    end
   end
   for _, wheretype in ipairs(wheretypes) do
     table.insert(paramtypes, wheretype)

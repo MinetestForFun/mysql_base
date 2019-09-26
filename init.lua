@@ -11,12 +11,14 @@ function thismod.mklog(level, modname)
     minetest.log(level, "[" .. modname .. "] " .. str)
   end
 end
+
 local LogI = thismod.mklog('action', modname)
 local LogE = thismod.mklog('error', modname)
 
 local singleplayer = minetest.is_singleplayer() -- Caching is OK since you can't open a game to
 -- multiplayer unless you restart it.
-if minetest.setting_get(modname .. '.enable_singleplayer') ~= 'true' and singleplayer then
+
+if minetest.settings:get(modname .. '.enable_singleplayer') ~= 'true' and singleplayer then
   LogI("Not enabling because of singleplayer game")
   return
 end
@@ -202,6 +204,7 @@ local function ping()
   end
   minetest.after(1800, ping)
 end
+
 minetest.after(10, ping)
 
 local shutdown_callbacks = {}

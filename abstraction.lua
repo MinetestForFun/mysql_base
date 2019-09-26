@@ -1,5 +1,4 @@
 local modname = minetest.get_current_modname()
-
 local thismod = _G[modname]
 
 ---- Table creation & deletion
@@ -33,6 +32,7 @@ function thismod.create_table_sql(name, params)
   end
   return 'CREATE TABLE ' .. name .. ' (' .. table.concat(lines, ',') .. ')'
 end
+
 function thismod.create_table(name, params)
   thismod.conn:query(thismod.create_table_sql(name, params))
 end
@@ -40,6 +40,7 @@ end
 function thismod.drop_table_sql(name)
   return 'DROP TABLE ' .. name
 end
+
 function thismod.drop_table(name)
   thismod.conn:query(thismod.drop_table_sql(name))
 end
@@ -96,6 +97,7 @@ end
 function thismod.prepare_select_sql(tablename, colnames, where)
   return 'SELECT ' .. table.concat(colnames, ',') .. ' FROM ' .. tablename .. ' WHERE ' .. where
 end
+
 function thismod.prepare_select(tablename, cols, where, wheretypes)
   local colnames, coltypes = {}, {}
   for _, col in ipairs(cols) do

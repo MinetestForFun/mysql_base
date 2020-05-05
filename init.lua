@@ -1,5 +1,5 @@
 local modname = minetest.get_current_modname()
-local modpath = minetest.get_modpath(modname) 
+local modpath = minetest.get_modpath(modname)
 
 local thismod = {
   enabled = false,
@@ -69,7 +69,7 @@ local function string_splitdots(s)
       local word_bound = i - 1
       table.insert(temp, string.sub(s, index, word_bound))
       index = next_index
-    else            
+    else
       if index > 0 and index <= last_index then
         table.insert(temp, string.sub(s, index, last_index))
       elseif index == 0 then

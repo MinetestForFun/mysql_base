@@ -1,4 +1,5 @@
 # mysql_base
+[![Build Status](https://travis-ci.org/MinetestForFun/mysql_base.svg)](https://travis-ci.org/MinetestForFun/mysql_base)
 
 Base Minetest mod to connect to a MySQL database. Used by other mods to read/write data.
 
